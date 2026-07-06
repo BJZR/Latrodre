@@ -53,6 +53,14 @@ CREATE TABLE product_colors (
     stock INTEGER DEFAULT 0
 );
 
+CREATE TABLE inventory (
+    id SERIAL PRIMARY KEY,
+    color_id INTEGER REFERENCES product_colors(id) ON DELETE CASCADE,
+    size VARCHAR(20) NOT NULL,
+    stock INTEGER DEFAULT 0,
+    UNIQUE(color_id, size)
+);
+
 CREATE TABLE cart_items (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
