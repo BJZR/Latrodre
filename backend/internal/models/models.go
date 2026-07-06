@@ -42,12 +42,18 @@ type Product struct {
 	CreatedAt   time.Time `json:"createdAt"`
 }
 
+type SizeStock struct {
+	Size  string `json:"size"`
+	Stock int    `json:"stock"`
+}
+
 type Color struct {
-	ID        int    `json:"id"`
-	ProductID int    `json:"productId"`
-	Name      string `json:"name"`
-	Hex       string `json:"hex"`
-	Stock     int    `json:"stock"`
+	ID        int         `json:"id"`
+	ProductID int         `json:"productId"`
+	Name      string      `json:"name"`
+	Hex       string      `json:"hex"`
+	Stock     int         `json:"stock"`
+	Sizes     []SizeStock `json:"sizes,omitempty"`
 }
 
 type CartItem struct {
@@ -195,10 +201,16 @@ type CreateProductRequest struct {
 	Colors      []ColorInput `json:"colors"`
 }
 
-type ColorInput struct {
-	Name  string `json:"name"`
-	Hex   string `json:"hex"`
+type SizeStockInput struct {
+	Size  string `json:"size"`
 	Stock int    `json:"stock"`
+}
+
+type ColorInput struct {
+	Name  string           `json:"name"`
+	Hex   string           `json:"hex"`
+	Stock int              `json:"stock"`
+	Sizes []SizeStockInput `json:"sizes,omitempty"`
 }
 
 type UpdateOrderStatusRequest struct {

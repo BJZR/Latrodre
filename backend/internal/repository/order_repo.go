@@ -122,6 +122,11 @@ func (r *OrderRepo) Create(userID int, req *models.CreateOrderRequest,
 			r.db.DB.Exec(
 				`UPDATE product_colors SET stock = stock - $1 WHERE id = $2 AND stock >= $1`,
 				ci.Quantity, *ci.ColorID)
+			if ci.Size != "" {
+				r.db.DB.Exec(
+					`UPDATE inventory SET stock = stock - $1 WHERE color_id = $2 AND size = $3 AND stock >= $1`,
+					ci.Quantity, *ci.ColorID, ci.Size)
+			}
 		}
 	}
 

@@ -77,15 +77,17 @@ func Auth(userRepo *repository.UserRepo) func(http.Handler) http.Handler {
 	}
 }
 
-func AdminOnly(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user, ok := r.Context().Value(userKey).(*models.User)
-		if !ok || user.Role != "admin" {
-			http.Error(w, `{"error":"acceso denegado"}`, http.StatusForbidden)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+func AdminOnly(adminEmail string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			user, ok := r.Context().Value(userKey).(*models.User)
+			if !ok || user.Role != "admin" || user.Email != adminEmail {
+				http.Error(w, `{"error":"acceso denegado"}`, http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func OptionalAuth(userRepo *repository.UserRepo) func(http.Handler) http.Handler {

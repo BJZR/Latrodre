@@ -229,9 +229,20 @@ func (r *ProductRepo) saveColors(productID int, cols []models.ColorInput) ([]mod
 		if err != nil {
 			return nil, err
 		}
+		r.saveSizeStocks(color.ID, c.Sizes)
+		color.Sizes = r.findSizeStocks(color.ID)
 		colors = append(colors, *color)
 	}
 	return colors, nil
+}
+
+func (r *ProductRepo) saveSizeStocks(colorID int, sizes []models.SizeStockInput) {
+	for _, s := range sizes {
+		r.db.DB.Exec(
+			`INSERT INTO inventory (color_id, size, stock) VALUES ($1, $2, $3)
+			 ON CONFLICT (color_id, size) DO UPDATE SET stock=$3`,
+			colorID, s.Size, s.Stock)
+	}
 }
 
 func (r *ProductRepo) Update(id int, req *models.CreateProductRequest) (*models.Product, error) {
@@ -248,6 +259,10 @@ func (r *ProductRepo) Update(id int, req *models.CreateProductRequest) (*models.
 		return nil, err
 	}
 
+	oldColors := r.findColors(id)
+	for _, oc := range oldColors {
+		r.db.DB.Exec(`DELETE FROM inventory WHERE color_id=$1`, oc.ID)
+	}
 	r.db.DB.Exec(`DELETE FROM product_colors WHERE product_id=$1`, id)
 
 	colors, err := r.saveColors(id, req.Colors)
@@ -294,6 +309,28 @@ func (r *ProductRepo) Delete(id int) error {
 	return err
 }
 
+func (r *ProductRepo) findSizeStocks(colorID int) []models.SizeStock {
+	rows, err := r.db.DB.Query(
+		`SELECT size, stock FROM inventory WHERE color_id=$1 ORDER BY size`, colorID)
+	if err != nil {
+		return []models.SizeStock{}
+	}
+	defer rows.Close()
+
+	var sizes []models.SizeStock
+	for rows.Next() {
+		var s models.SizeStock
+		if err := rows.Scan(&s.Size, &s.Stock); err != nil {
+			continue
+		}
+		sizes = append(sizes, s)
+	}
+	if sizes == nil {
+		sizes = []models.SizeStock{}
+	}
+	return sizes
+}
+
 func (r *ProductRepo) findColors(productID int) []models.Color {
 	rows, err := r.db.DB.Query(
 		`SELECT id, product_id, name, hex, stock FROM product_colors WHERE product_id=$1`, productID)
@@ -308,6 +345,7 @@ func (r *ProductRepo) findColors(productID int) []models.Color {
 		if err != nil {
 			continue
 		}
+		c.Sizes = r.findSizeStocks(c.ID)
 		colors = append(colors, *c)
 	}
 	if colors == nil {

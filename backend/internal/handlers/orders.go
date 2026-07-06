@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"latrode-fusion/internal/config"
 	"latrode-fusion/internal/middleware"
 	"latrode-fusion/internal/models"
 	"latrode-fusion/internal/repository"
@@ -13,10 +14,11 @@ import (
 type OrderHandler struct {
 	orderRepo *repository.OrderRepo
 	cartRepo  *repository.CartRepo
+	cfg       *config.Config
 }
 
-func NewOrderHandler(orderRepo *repository.OrderRepo, cartRepo *repository.CartRepo) *OrderHandler {
-	return &OrderHandler{orderRepo: orderRepo, cartRepo: cartRepo}
+func NewOrderHandler(orderRepo *repository.OrderRepo, cartRepo *repository.CartRepo, cfg *config.Config) *OrderHandler {
+	return &OrderHandler{orderRepo: orderRepo, cartRepo: cartRepo, cfg: cfg}
 }
 
 func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -58,6 +60,32 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	h.cartRepo.Clear(user.ID)
 	h.orderRepo.LogActivity(user.ID, "crear_orden", "orders", order.ID, middleware.GetClientIP(r))
+
+	go func() {
+		items := make([]models.OrderItem, len(cartItems))
+		for i, ci := range cartItems {
+			pn := ""
+			pp := 0.0
+			if ci.Product != nil {
+				pn = ci.Product.Name
+				pp = ci.Product.Price
+			}
+			cn := ""
+			if ci.Color != nil {
+				cn = ci.Color.Name
+			}
+			items[i] = models.OrderItem{
+				ProductName:  pn,
+				ProductPrice: pp,
+				ColorName:    cn,
+				Size:         ci.Size,
+				Quantity:     ci.Quantity,
+				Subtotal:     pp * float64(ci.Quantity),
+			}
+		}
+		order.Items = items
+		middleware.SendOrderNotification(h.cfg, order, user)
+	}()
 
 	middleware.WriteJSON(w, http.StatusCreated, order)
 }

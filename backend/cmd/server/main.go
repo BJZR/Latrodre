@@ -31,13 +31,14 @@ func main() {
 	productHandler := handlers.NewProductHandler(productRepo)
 	cartHandler := handlers.NewCartHandler(cartRepo)
 	favHandler := handlers.NewFavoriteHandler(favRepo)
-	orderHandler := handlers.NewOrderHandler(orderRepo, cartRepo)
+	orderHandler := handlers.NewOrderHandler(orderRepo, cartRepo, cfg)
 	adminHandler := handlers.NewAdminHandler(orderRepo, productRepo, userRepo)
 	paymentHandler := handlers.NewPaymentHandler(orderRepo)
 	oauthHandler := handlers.NewOAuthHandler(cfg, userRepo)
 
 	auth := middleware.Auth(userRepo)
-	adminAuth := middleware.AdminOnly
+	adminEmail := "latrode.co@gmail.com"
+	adminAuth := middleware.AdminOnly(adminEmail)
 	optionalAuth := middleware.OptionalAuth(userRepo)
 
 	wrap := func(fn http.HandlerFunc) http.Handler {
