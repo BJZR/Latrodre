@@ -164,6 +164,15 @@
                     <div class="section-header">
                         <h3>Usuarios Registrados</h3>
                     </div>
+                    <div class="users-filter-bar">
+                        <input type="text" id="usersSearchInput" placeholder="Buscar por nombre o email..." class="users-search-input">
+                        <select id="usersRoleFilter" class="users-role-select">
+                            <option value="">Todos los roles</option>
+                            <option value="admin">Admin</option>
+                            <option value="customer">Cliente</option>
+                        </select>
+                        <button class="btn-primary btn-sm" onclick="applyUsersFilter()">Filtrar</button>
+                    </div>
                     <div id="usersTable" class="table-container">
                         <p class="loading">Cargando usuarios...</p>
                     </div>
@@ -219,10 +228,7 @@
                     <label>Precio</label>
                     <input type="number" name="price" step="0.01" required>
                 </div>
-                <div class="form-group">
-                    <label>Stock</label>
-                    <input type="number" name="stock" required>
-                </div>
+                <!-- stock auto-calculado de colores × tallas -->
                 <div class="form-group">
                     <label>Categoría</label>
                     <input type="text" name="category" required>
@@ -232,8 +238,8 @@
                     <input type="text" name="material" placeholder="Ej: Algodón orgánico">
                 </div>
                 <div class="form-group">
-                    <label>Tallas (separadas por coma)</label>
-                    <input type="text" name="sizes" placeholder="Ej: S, M, L, XL">
+                    <label>Tallas disponibles (separadas por coma)</label>
+                    <input type="text" name="sizes" id="product-sizes-input" placeholder="Ej: S, M, L, XL" oninput="onGlobalSizesChange()">
                 </div>
                 <div class="form-group">
                     <label>URL de Imagen</label>
@@ -245,8 +251,11 @@
                     <div class="color-add-row">
                         <input type="text" id="color-name-input" placeholder="Nombre (ej: Rojo)" class="color-input" style="flex:1">
                         <input type="color" id="color-hex-input" value="#000000" class="color-input color-hex" style="width:40px">
-                        <input type="number" id="color-stock-input" value="0" min="0" class="color-input" style="width:60px" title="Stock para este color">
                         <button type="button" class="btn-secondary btn-sm" onclick="addColor()">+</button>
+                    </div>
+                    <div id="color-size-stock-area" class="color-size-stock-area" style="display:none; margin-top:8px">
+                        <label class="size-stock-area-label">Stock por talla:</label>
+                        <div id="color-size-stock-inputs" class="color-size-stock-inputs"></div>
                     </div>
                 </div>
                 <div class="form-actions">
@@ -260,20 +269,52 @@
     <!-- Login Overlay -->
     <div id="loginOverlay" class="admin-login-overlay">
         <div class="admin-login-modal">
-            <h2>Iniciar Sesión</h2>
-            <p class="login-subtitle">Panel Administrativo Latrode</p>
-            <form id="adminLoginForm">
-                <div class="form-group">
-                    <label for="loginEmail">Correo Electrónico</label>
-                    <input type="email" id="loginEmail" placeholder="admin@latrode.com" required autocomplete="email">
-                </div>
-                <div class="form-group">
-                    <label for="loginPassword">Contraseña</label>
-                    <input type="password" id="loginPassword" placeholder="••••••••" required autocomplete="current-password">
-                </div>
-                <p id="loginError" class="login-error" style="display:none"></p>
-                <button type="submit" class="btn-primary login-btn">Ingresar</button>
-            </form>
+            <div id="adminLoginView">
+                <h2>Iniciar Sesión</h2>
+                <p class="login-subtitle">Panel Administrativo Latrode</p>
+                <form id="adminLoginForm">
+                    <div class="form-group">
+                        <label for="loginEmail">Correo Electrónico</label>
+                        <input type="email" id="loginEmail" placeholder="admin@latrode.com" required autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="loginPassword">Contraseña</label>
+                        <input type="password" id="loginPassword" placeholder="••••••••" required autocomplete="current-password">
+                    </div>
+                    <p id="loginError" class="login-error" style="display:none"></p>
+                    <button type="submit" class="btn-primary login-btn">Ingresar</button>
+                    <a href="#" id="adminForgotLink" class="forgot-link" style="display:block;text-align:center;margin-top:12px;color:var(--muted);font-size:13px">¿Olvidaste tu contraseña?</a>
+                </form>
+            </div>
+            <div id="adminResetView" style="display:none">
+                <h2>Recuperar Contraseña</h2>
+                <p class="login-subtitle">Te enviaremos un código a tu correo</p>
+                <form id="adminResetForm">
+                    <div class="form-group">
+                        <label for="resetEmail">Correo Electrónico</label>
+                        <input type="email" id="resetEmail" value="latrode.co@gmail.com" readonly style="opacity:0.6">
+                    </div>
+                    <div id="adminResetStep1">
+                        <button type="submit" class="btn-primary login-btn">Enviar Código</button>
+                    </div>
+                    <div id="adminResetStep2" style="display:none">
+                        <div class="form-group">
+                            <label for="resetCode">Código de recuperación</label>
+                            <input type="text" id="resetCode" placeholder="000000" required>
+                        </div>
+                        <button type="submit" class="btn-primary login-btn">Verificar Código</button>
+                    </div>
+                    <div id="adminResetStep3" style="display:none">
+                        <div class="form-group">
+                            <label for="resetNewPassword">Nueva Contraseña</label>
+                            <input type="password" id="resetNewPassword" placeholder="••••••••" required>
+                        </div>
+                        <button type="submit" class="btn-primary login-btn">Cambiar Contraseña</button>
+                    </div>
+                    <p id="resetError" class="login-error" style="display:none"></p>
+                    <a href="#" id="adminBackToLogin" style="display:block;text-align:center;margin-top:12px;color:var(--muted);font-size:13px">← Volver a inicio de sesión</a>
+                </form>
+            </div>
         </div>
     </div>
 

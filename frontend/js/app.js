@@ -1,91 +1,11 @@
-const DEMO_PRODUCTS = [
-  {
-    id: "demo-1", name: "Hoodie Oversize", category: "hoodie", price: 189900, stock: 25,
-    description: "Hoodie oversize de algodón orgánico con capucha ajustable y bolsillo canguro.",
-    imageUrl: "assets/img/1.jpeg",
-    sizes: ["S", "M", "L", "XL"],
-    colors: [
-      { id: "c1", name: "Negro", hex: "#1a1a1a" },
-      { id: "c2", name: "Beige", hex: "#d4c5b0" },
-      { id: "c3", name: "Marrón", hex: "#8B4513" },
-      { id: "c4", name: "Army", hex: "#4A5D23" },
-    ],
-  },
-  {
-    id: "demo-2", name: "Camiseta Algodón Premium", category: "camiseta", price: 79900, stock: 50,
-    description: "Camiseta de algodón peinado 180g, corte regular y costura reforzada.",
-    imageUrl: "assets/img/2.jpeg",
-    sizes: ["S", "M", "L", "XL"],
-    colors: [
-      { id: "c5", name: "Blanco", hex: "#ffffff" },
-      { id: "c6", name: "Negro", hex: "#1a1a1a" },
-      { id: "c7", name: "Gris", hex: "#808080" },
-    ],
-  },
-  {
-    id: "demo-3", name: "Gorra Street 6Panel", category: "gorra", price: 59900, stock: 35,
-    description: "Gorra urbana 6 paneles con visera curva plana y ajuste trasero.",
-    imageUrl: "assets/img/3.jpeg",
-    sizes: ["S", "M", "L"],
-    colors: [
-      { id: "c8", name: "Negro", hex: "#1a1a1a" },
-      { id: "c9", name: "Azul", hex: "#1a3a5c" },
-      { id: "c10", name: "Rojo", hex: "#cc3333" },
-    ],
-  },
-  {
-    id: "demo-4", name: "Jean Slim Fit", category: "jean", price: 149900, stock: 20,
-    description: "Jean slim fit en denim elástico, tiro medio y corte moderno.",
-    imageUrl: "assets/img/4.jpeg",
-    sizes: ["28", "30", "32", "34"],
-    colors: [
-      { id: "c11", name: "Azul", hex: "#2c5282" },
-      { id: "c12", name: "Negro", hex: "#1a1a1a" },
-    ],
-  },
-  {
-    id: "demo-5", name: "Chaqueta Bomber", category: "chaqueta", price: 229900, stock: 15,
-    description: "Chaqueta bomber acolchada con cierre metálico y cuello ribeteado.",
-    imageUrl: "assets/img/5.jpeg",
-    sizes: ["S", "M", "L", "XL"],
-    colors: [
-      { id: "c13", name: "Negro", hex: "#1a1a1a" },
-      { id: "c14", name: "Verde", hex: "#2d5016" },
-      { id: "c15", name: "Marrón", hex: "#8B4513" },
-    ],
-  },
-  {
-    id: "demo-6", name: "Short Deportivo", category: "short", price: 69900, stock: 40,
-    description: "Short deportivo en poliéster透气 con bolsillos laterales y cintura elástica.",
-    imageUrl: "assets/img/short.jpg",
-    sizes: ["S", "M", "L", "XL"],
-    colors: [
-      { id: "c16", name: "Negro", hex: "#1a1a1a" },
-      { id: "c17", name: "Azul", hex: "#1a3a5c" },
-      { id: "c18", name: "Gris", hex: "#808080" },
-    ],
-  },
-  {
-    id: "demo-7", name: "Short Playa Estampado", category: "short", price: 59900, stock: 30,
-    description: "Short de playa en tela ligera con estampado tropical y cordón ajustable.",
-    imageUrl: "assets/img/short1.jpg",
-    sizes: ["S", "M", "L", "XL"],
-    colors: [
-      { id: "c19", name: "Azul", hex: "#2c5282" },
-      { id: "c20", name: "Verde", hex: "#2d5016" },
-    ],
-  },
-  {
-    id: "demo-8", name: "Jogger Urbano", category: "jogger", price: 119900, stock: 22,
-    description: "Jogger urbano en algodón fleece con puños elastizados y bolsillos profundos.",
-    imageUrl: "assets/img/short2.jpg",
-    sizes: ["S", "M", "L", "XL"],
-    colors: [
-      { id: "c21", name: "Negro", hex: "#1a1a1a" },
-      { id: "c22", name: "Gris", hex: "#808080" },
-    ],
-  },
-];
+function parseSizesStock(jsonStr) {
+  try { return JSON.parse(jsonStr) || []; } catch (_) { return []; }
+}
+
+function getSizeStock(sizes, sizeName) {
+  const sz = (sizes || []).find(s => s.size === sizeName);
+  return sz ? sz.stock : 0;
+}
 
 class App {
   imgUrl(url) {
@@ -93,8 +13,12 @@ class App {
     return 'assets/img/' + url;
   }
 
+  getStockForSelection() {
+    if (!this.selectedColor || !this.selectedSize) return 0;
+    return getSizeStock(this.selectedColor.sizes, this.selectedSize);
+  }
+
   constructor() {
-    this.demoMode = false;
     this.products = [];
     this.cart = [];
     this.favorites = [];
@@ -119,20 +43,10 @@ class App {
     this.bindEvents();
     this.loadTheme();
     await this.checkAuthStatus();
+    document.getElementById("splash-screen").classList.add("hidden");
   }
 
   async checkAuthStatus() {
-    if (this.demoMode) {
-      const savedUser = this.demoGetData('currentUser');
-      if (savedUser && savedUser.id) {
-        this.user = savedUser;
-        this.updateLoggedInUI();
-      }
-      await this.loadCart();
-      await this.loadFavorites();
-      return;
-    }
-
     try {
       const response = await API.getProfile();
       if (response && response.id) {
@@ -155,17 +69,15 @@ class App {
       const res = await API.getProducts(query, this.page, this.limit);
       if (res && res.data) {
         this.products = res.data;
+        this._allProducts = res.data;
         this.totalPages = res.totalPages || 1;
         this.totalProducts = res.total || 0;
       } else {
         this.products = res || [];
+        this._allProducts = res || [];
       }
     } catch (error) {
-      if (!this.products.length) {
-        console.log("API unavailable, using demo products");
-        this.demoMode = true;
-        this.products = DEMO_PRODUCTS;
-      }
+      console.warn('loadProducts error:', error);
     }
   }
 
@@ -205,7 +117,8 @@ class App {
                                         <button class="color-option ${i === 0 ? "active" : ""}"
                                                 data-color-id="${color.id}"
                                                 data-color-name="${color.name}"
-                                                data-color-stock="${color.stock}"
+                                                data-color-stock="${color.stock || 0}"
+                                                data-sizes-stock='${JSON.stringify(color.sizes || [])}'
                                                 style="background: ${color.hex}"
                                                 data-image="${this.imgUrl(color.imageUrl || product.imageUrl)}"
                                                 aria-label="${color.name}"></button>
@@ -216,7 +129,7 @@ class App {
                                     }
                                 </div>
                                 <div class="color-name-label">${product.colors && product.colors.length > 0 ? product.colors[0].name : ''}</div>
-                                <div class="color-stock-label">${product.colors && product.colors.length > 0 ? (product.colors[0].stock > 0 ? product.colors[0].stock + ' unidades disponibles' : 'Agotado') : (product.stock > 0 ? product.stock + ' unidades disponibles' : 'Agotado')}</div>
+                                <div class="color-stock-label">${(() => { if (!product.colors || !product.colors[0]) return ''; const stock = getSizeStock(product.colors[0].sizes, product.sizes && product.sizes[0]) || product.colors[0].stock || 0; return stock > 0 ? stock + ' unidades disponibles' : 'Agotado'; })()}</div>
                             </div>
                             <div class="size-selector">
                                 <span class="size-label">Talla:</span>
@@ -224,14 +137,15 @@ class App {
                                     ${
                                       product.sizes &&
                                       product.sizes.length > 0
-                                        ? product.sizes
-                                            .map(
-                                              (size, i) => `
-                                        <button class="size-option ${i === 0 ? "active" : ""}"
-                                                data-size="${size}">${size}</button>
-                                    `,
-                                            )
-                                            .join("")
+                                        ? (() => {
+                                            const firstSizes = product.colors && product.colors[0] && product.colors[0].sizes || [];
+                                            return product.sizes.map((size, i) => {
+                                              const stock = getSizeStock(firstSizes, size);
+                                              return `<button class="size-option ${i === 0 ? "active" : ""} ${stock === 0 ? "disabled" : ""}"
+                                                  data-size="${size}"
+                                                  data-size-stock="${stock}">${size}</button>`;
+                                            }).join("");
+                                          })()
                                         : ""
                                     }
                                 </div>
@@ -249,7 +163,7 @@ class App {
       this.bindCardEvents(slide);
     });
 
-    if (!this.demoMode && !this.isSearching && this.totalPages > 1) {
+    if (!this.isSearching && this.totalPages > 1) {
       this.renderPagination(feed);
     }
   }
@@ -319,9 +233,12 @@ class App {
     });
     document
       .querySelector(".search-clear-btn")
-      .addEventListener("click", () => {
-        document.querySelector(".search-input").value = "";
+      .addEventListener("click", (e) => {
+        e.preventDefault();
+        const input = document.querySelector(".search-input");
+        input.value = "";
         document.querySelector(".search-clear-btn").style.display = "none";
+        input.focus();
       });
     document.querySelector(".search-input").addEventListener("input", (e) => {
       document.querySelector(".search-clear-btn").style.display = e.target.value
@@ -391,11 +308,20 @@ class App {
       .querySelector(".confirm-order-btn")
       .addEventListener("click", () => this.confirmOrder());
 
+    document.getElementById("confirm-cancel-btn").addEventListener("click", () => {
+      document.getElementById("confirm-order-overlay").classList.remove("active");
+      this._pendingOrder = null;
+    });
+
+    document.getElementById("confirm-accept-btn").addEventListener("click", () => {
+      this.submitOrder();
+    });
+
     document
-      .querySelector("#add-to-cart-modal .modal-close-btn")
+      .querySelector("#add-to-cart-overlay .close-panel-btn")
       .addEventListener("click", () => this.closeAddToCartModal());
     document
-      .querySelector(".modal-add-btn")
+      .getElementById("add-to-cart-confirm")
       .addEventListener("click", () => this.confirmAddToCart());
     document
       .querySelector(".modal-qty-btn.minus")
@@ -482,6 +408,80 @@ class App {
       });
 
     document
+      .getElementById("search-filter-btn")
+      .addEventListener("click", () => {
+        this.buildFilterCategories();
+        this.closeSearch();
+        document.getElementById("filters-overlay").classList.add("active");
+      });
+
+    document
+      .getElementById("close-filters-btn")
+      .addEventListener("click", () => {
+        document.getElementById("filters-overlay").classList.remove("active");
+        this.closeSearch();
+      });
+
+    document
+      .getElementById("filter-category-btn")
+      .addEventListener("click", (e) => {
+        e.stopPropagation();
+        const sub = document.getElementById("filter-category-submenu");
+        const other = document.getElementById("filter-sort-submenu");
+        other.style.display = "none";
+        sub.style.display = sub.style.display === "none" ? "block" : "none";
+      });
+
+    document
+      .getElementById("filter-sort-btn")
+      .addEventListener("click", (e) => {
+        e.stopPropagation();
+        const sub = document.getElementById("filter-sort-submenu");
+        const other = document.getElementById("filter-category-submenu");
+        other.style.display = "none";
+        sub.style.display = sub.style.display === "none" ? "block" : "none";
+      });
+
+    document.querySelectorAll("#filter-category-submenu .filter-suboption").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const val = btn.dataset.value;
+        document.getElementById("filter-category-value").textContent = val || "Todas";
+        document.getElementById("filter-category-submenu").style.display = "none";
+        this._filterCategory = val;
+      });
+    });
+
+    document.querySelectorAll("#filter-sort-submenu .filter-suboption").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const names = { "": "Por defecto", "price-asc": "Menor precio", "price-desc": "Mayor precio", "name-asc": "A-Z", "name-desc": "Z-A" };
+        document.getElementById("filter-sort-value").textContent = names[btn.dataset.value] || "Por defecto";
+        document.getElementById("filter-sort-submenu").style.display = "none";
+        this._filterSort = btn.dataset.value;
+      });
+    });
+
+    document.addEventListener("click", () => {
+      document.getElementById("filter-category-submenu").style.display = "none";
+      document.getElementById("filter-sort-submenu").style.display = "none";
+    });
+
+    document
+      .getElementById("apply-filters-btn")
+      .addEventListener("click", () => {
+        this.applyFilters();
+        document.getElementById("filters-overlay").classList.remove("active");
+        this.closeSearch();
+      });
+
+    document
+      .getElementById("reset-filters-btn")
+      .addEventListener("click", () => {
+        this.resetFilters();
+        document.getElementById("filters-overlay").classList.remove("active");
+        this.closeSearch();
+      });
+
+    document
       .getElementById("profile-form")
       .addEventListener("submit", (e) => this.handleProfileUpdate(e));
     document
@@ -502,10 +502,10 @@ class App {
       btn.addEventListener("click", () => this.closeAllOverlays());
     });
 
-    const addCartModal = document.getElementById("add-to-cart-modal");
-    if (addCartModal) {
-      addCartModal.addEventListener("click", (e) => {
-        if (e.target === addCartModal) this.closeAddToCartModal();
+    const addCartOverlay = document.getElementById("add-to-cart-overlay");
+    if (addCartOverlay) {
+      addCartOverlay.addEventListener("click", (e) => {
+        if (e.target === addCartOverlay) this.closeAddToCartModal();
       });
     }
 
@@ -562,12 +562,19 @@ class App {
           card.querySelector(".main-product-image").src = imageUrl;
         }
         const nameEl = card.querySelector(".color-name-label");
-        const stockEl = card.querySelector(".color-stock-label");
         if (nameEl) {
           nameEl.textContent = option.getAttribute("data-color-name") || "";
         }
-        if (stockEl) {
-          const stock = parseInt(option.getAttribute("data-color-stock")) || 0;
+        const activeSize = card.querySelector(".size-option.active");
+        const sizes = parseSizesStock(option.getAttribute("data-sizes-stock"));
+        card.querySelectorAll(".size-option").forEach((btn) => {
+          const stock = getSizeStock(sizes, btn.getAttribute("data-size"));
+          btn.setAttribute("data-size-stock", stock);
+          btn.classList.toggle("disabled", stock === 0);
+        });
+        const stockEl = card.querySelector(".color-stock-label");
+        if (stockEl && activeSize) {
+          const stock = getSizeStock(sizes, activeSize.getAttribute("data-size"));
           stockEl.textContent = stock > 0 ? stock + " unidades disponibles" : "Agotado";
         }
       });
@@ -580,6 +587,13 @@ class App {
           .querySelectorAll(".size-option")
           .forEach((o) => o.classList.remove("active"));
         option.classList.add("active");
+        const activeColor = card.querySelector(".color-option.active");
+        const stockEl = card.querySelector(".color-stock-label");
+        if (stockEl && activeColor) {
+          const sizes = parseSizesStock(activeColor.getAttribute("data-sizes-stock"));
+          const stock = getSizeStock(sizes, option.getAttribute("data-size"));
+          stockEl.textContent = stock > 0 ? stock + " unidades disponibles" : "Agotado";
+        }
       });
     });
 
@@ -601,6 +615,8 @@ class App {
     e.preventDefault();
     if (document.body.classList.contains("expanded-mode")) {
       this.openAddToCartModal();
+    } else if (this.isSearching) {
+      this.clearSearch();
     } else {
       document.body.classList.add("search-active");
       setTimeout(() => document.querySelector(".search-input").focus(), 100);
@@ -689,11 +705,19 @@ class App {
 
   collapseCard() {
     document
+      .querySelectorAll(".card.expanded")
+      .forEach((c) => c.classList.add("collapsing"));
+    document
       .querySelectorAll(".card")
       .forEach((c) => c.classList.remove("expanded"));
     document.body.classList.remove("expanded-mode");
     document.getElementById("product-feed").style.overflow = "scroll";
     this.currentProduct = null;
+    setTimeout(() => {
+      document
+        .querySelectorAll(".card")
+        .forEach((c) => c.classList.remove("collapsing"));
+    }, 400);
   }
 
   closeSearch() {
@@ -702,8 +726,15 @@ class App {
     document.querySelector(".search-clear-btn").style.display = "none";
   }
 
+  updateSearchIcons() {
+    const btn = document.getElementById("search-trigger-btn");
+    btn.querySelector(".icon-search").style.display = this.isSearching ? "none" : "";
+    btn.querySelector(".icon-home").style.display = this.isSearching ? "block" : "none";
+  }
+
   async clearSearch() {
     this.isSearching = false;
+    this.updateSearchIcons();
     this.closeSearch();
     await this.loadProducts(1);
     this.renderProducts();
@@ -747,26 +778,12 @@ class App {
       this.lastExpandedIndex = null;
     }
 
-    if (this.demoMode) {
-      const q = query.toLowerCase();
-      this.products = DEMO_PRODUCTS.filter(
-        p => p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q) || p.description.toLowerCase().includes(q)
-      );
-      this.isSearching = true;
-      this.renderProducts();
-      if (this.products.length === 0) {
-        this.showNotification(`No se encontraron productos para "${query}"`, "warning");
-      } else {
-        this.showNotification(`Se encontraron ${this.products.length} producto(s)`, "success");
-      }
-      return;
-    }
-
     try {
       this.page = 1;
       const res = await API.getProducts(query, 1, 100);
       this.products = res.data || res || [];
       this.isSearching = true;
+      this.updateSearchIcons();
       this.renderProducts();
 
       // Mostrar notificación si no hay resultados
@@ -787,30 +804,11 @@ class App {
     this.closeSearch();
   }
 
-  demoGetData(key) {
-    try { return JSON.parse(localStorage.getItem('latrode_' + key)) || []; }
-    catch { return []; }
-  }
-  demoSaveData(key, data) {
-    localStorage.setItem('latrode_' + key, JSON.stringify(data));
-  }
-
   async loadCart() {
     try {
-      if (this.demoMode) {
-        this.cart = this.demoGetData('cart');
-        this.renderCart();
-        return;
-      }
       this.cart = await API.getCart() || [];
       this.renderCart();
     } catch (error) {
-      if (!this.demoMode) {
-        this.demoMode = true;
-        this.cart = this.demoGetData('cart');
-        this.renderCart();
-        return;
-      }
       console.error("Error loading cart:", error);
     }
   }
@@ -924,13 +922,6 @@ class App {
       return;
     }
 
-    if (this.demoMode) {
-      item.quantity = newQty;
-      this.demoSaveData('cart', this.cart);
-      this.renderCart();
-      return;
-    }
-
     try {
       await API.updateCartItem(itemId, newQty);
       item.quantity = newQty;
@@ -941,13 +932,6 @@ class App {
   }
 
   async removeFromCart(itemId) {
-    if (this.demoMode) {
-      this.cart = this.cart.filter((i) => String(i.id) !== itemId);
-      this.demoSaveData('cart', this.cart);
-      this.renderCart();
-      this.showNotification("Producto eliminado");
-      return;
-    }
     try {
       await API.removeFromCart(itemId);
       this.cart = this.cart.filter((i) => String(i.id) !== itemId);
@@ -960,20 +944,9 @@ class App {
 
   async loadFavorites() {
     try {
-      if (this.demoMode) {
-        this.favorites = this.demoGetData('favorites');
-        this.renderFavorites();
-        return;
-      }
       this.favorites = await API.getFavorites() || [];
       this.renderFavorites();
     } catch (error) {
-      if (!this.demoMode) {
-        this.demoMode = true;
-        this.favorites = this.demoGetData('favorites');
-        this.renderFavorites();
-        return;
-      }
       console.error("Error loading favorites:", error);
     }
   }
@@ -1038,13 +1011,6 @@ class App {
   }
 
   async removeFromFavorites(favId) {
-    if (this.demoMode) {
-      this.favorites = this.favorites.filter((f) => String(f.id) !== String(favId));
-      this.demoSaveData('favorites', this.favorites);
-      this.renderFavorites();
-      this.showNotification("Eliminado de favoritos");
-      return;
-    }
     try {
       await API.removeFromFavorites(favId);
       this.favorites = this.favorites.filter((f) => String(f.id) !== String(favId));
@@ -1056,16 +1022,22 @@ class App {
   }
 
   async loadUserOrders() {
-    if (this.demoMode) {
-      const orders = this.demoGetData('orders');
-      this.renderOrders(orders);
-      document.getElementById("orders-overlay").classList.add("active");
+    if (!this.user) {
+      this.closeAllOverlays();
+      document.getElementById("profile-overlay").classList.add("active");
+      this.showLoginForm();
+      this.showNotification("Inicia sesión para ver tus pedidos", "info");
       return;
+    }
+    const overlay = document.getElementById("orders-overlay");
+    const content = overlay.querySelector(".menu-content");
+    if (!content.querySelector("#orders-items")) {
+      content.innerHTML = '<div class="orders-items" id="orders-items"></div>';
     }
     try {
       const orders = await API.getMyOrders() || [];
       this.renderOrders(orders);
-      document.getElementById("orders-overlay").classList.add("active");
+      overlay.classList.add("active");
     } catch (error) {
       this.showNotification("Error cargando pedidos");
     }
@@ -1183,22 +1155,12 @@ class App {
       return;
     }
 
-    if (this.demoMode) {
-      const newFav = {
-        id: "fav-" + Date.now(),
-        product: this.currentProduct,
-      };
-      this.favorites.push(newFav);
-      this.demoSaveData('favorites', this.favorites);
-      favIcon.classList.add("favorited");
-      this.showNotification("Agregado a favoritos ❤️");
-      this._favToggling = false;
-      return;
-    }
-
     try {
       await API.addToFavorites(this.currentProduct.id);
-      await this.loadFavorites();
+      this.favorites.push({
+        id: "fav-" + Date.now(),
+        product: this.currentProduct,
+      });
       favIcon.classList.add("favorited");
       this.showNotification("Agregado a favoritos ❤️");
     } catch {
@@ -1221,7 +1183,7 @@ class App {
   openAddToCartModal() {
     if (!this.currentProduct) return;
 
-    const modal = document.getElementById("add-to-cart-modal");
+    const modal = document.getElementById("add-to-cart-overlay");
     const product = this.currentProduct;
 
     modal.querySelector(".modal-product-image").src =
@@ -1282,11 +1244,17 @@ class App {
   }
 
   closeAddToCartModal() {
-    document.getElementById("add-to-cart-modal").classList.remove("active");
+    document.getElementById("add-to-cart-overlay").classList.remove("active");
   }
 
   updateModalQuantity(delta) {
-    this.selectedQuantity = Math.max(1, this.selectedQuantity + delta);
+    const maxStock = this.getStockForSelection();
+    let qty = this.selectedQuantity + delta;
+    if (qty > maxStock) {
+      this.showNotification("Solo hay " + maxStock + " unidades disponibles", "error");
+      qty = maxStock;
+    }
+    this.selectedQuantity = Math.max(1, qty);
     document.querySelector(".modal-quantity").textContent =
       this.selectedQuantity;
   }
@@ -1294,23 +1262,9 @@ class App {
   async confirmAddToCart() {
     if (!this.currentProduct || !this.selectedColor) return;
 
-    if (this.demoMode) {
-      const newItem = {
-        id: "ci-" + Date.now(),
-        product: this.currentProduct,
-        color: this.selectedColor,
-        size: this.selectedSize,
-        quantity: this.selectedQuantity,
-      };
-      this.cart.push(newItem);
-      this.demoSaveData('cart', this.cart);
-      this.showNotification("¡Agregado al carrito!");
-      this.closeAddToCartModal();
-      if (document.body.classList.contains("expanded-mode")) this.collapseCard();
-      setTimeout(() => {
-        this.loadCart();
-        document.getElementById("cart-overlay").classList.add("active");
-      }, 300);
+    const maxStock = this.getStockForSelection();
+    if (this.selectedQuantity > maxStock) {
+      this.showNotification("Solo hay " + maxStock + " unidades disponibles", "error");
       return;
     }
 
@@ -1363,22 +1317,9 @@ class App {
       ? activeSizeBtn.dataset.size
       : (this.currentProduct.sizes && this.currentProduct.sizes[0]) || null;
 
-    if (this.demoMode) {
-      const newItem = {
-        id: "ci-" + Date.now(),
-        product: this.currentProduct,
-        color: selectedColor,
-        size: selectedSize,
-        quantity: 1,
-      };
-      this.cart.push(newItem);
-      this.demoSaveData('cart', this.cart);
-      this.showNotification("¡Agregado al carrito!");
-      this.collapseCard();
-      setTimeout(() => {
-        this.loadCart();
-        document.getElementById("cart-overlay").classList.add("active");
-      }, 300);
+    const stock = getSizeStock(selectedColor.sizes, selectedSize);
+    if (stock <= 0) {
+      this.showNotification("Producto agotado para esta combinación", "error");
       return;
     }
 
@@ -1397,11 +1338,6 @@ class App {
   }
 
   async autoSaveProfile(data) {
-    if (this.demoMode) {
-      Object.assign(this.user, data);
-      this.demoSaveData('currentUser', this.user);
-      return;
-    }
     try {
       await API.updateProfile(data);
       Object.assign(this.user, data);
@@ -1456,21 +1392,6 @@ class App {
   async loadPaymentMethods() {
     const container = document.getElementById("checkout-payment-methods");
     if (!container) return;
-
-    if (this.demoMode) {
-      container.innerHTML = `
-        <label class="payment-option active" data-method="cash_on_delivery">
-          <input type="radio" name="payment_method" value="cash_on_delivery" checked hidden>
-          <span class="payment-option-content">
-            <svg viewBox="0 0 24 24" width="24" height="24"><use href="assets/icons/help.svg#icon"/></svg>
-            <div>
-              <span class="payment-name">Pago Contra Entrega</span>
-              <p class="payment-desc">Pagas en efectivo cuando recibes tu pedido</p>
-            </div>
-          </span>
-        </label>`;
-      return;
-    }
 
     try {
       const methods = await API.request("/payment-methods");
@@ -1534,66 +1455,54 @@ class App {
       0,
     );
 
-    const name = document.getElementById("checkout-name").value.trim() || this.user.username || "—";
-    const address = document.getElementById("checkout-address").value.trim() || this.user.address || "—";
-    const city = document.getElementById("checkout-city").value.trim() || this.user.city || "—";
-    const phone = document.getElementById("checkout-phone").value.trim() || this.user.phone || "—";
+    const name = document.getElementById("checkout-name").value.trim();
+    const address = document.getElementById("checkout-address").value.trim();
+    const city = document.getElementById("checkout-city").value.trim();
+    const phone = document.getElementById("checkout-phone").value.trim();
+
+    const missing = [];
+    if (!name) missing.push("Nombre");
+    if (!address) missing.push("Dirección");
+    if (!city) missing.push("Ciudad");
+    if (!phone) missing.push("Teléfono");
+
+    if (missing.length > 0) {
+      this.showNotification(`Completa los campos obligatorios: ${missing.join(", ")}`, "error");
+      return;
+    }
 
     const selectedPayment = document.querySelector(".payment-option.active");
     const paymentMethod = selectedPayment
       ? selectedPayment.dataset.method
       : "cash_on_delivery";
 
-    const confirmed = confirm(
-      `¿Confirmar pedido?\n\n` +
-        `Total: $${Math.round(subtotal).toLocaleString()}\n` +
-        `Dirección: ${address}, ${city}\n\n` +
-        `¿Deseas continuar?`,
-    );
+    const paymentName = document.querySelector(".payment-option.active .payment-name");
+    const paymentLabel = paymentName ? paymentName.textContent : "Pago contra entrega";
 
-    if (!confirmed) return;
+    document.getElementById("confirm-total").textContent = `$${Math.round(subtotal).toLocaleString()}`;
+    document.getElementById("confirm-address").textContent = `${address}, ${city}`;
+    document.getElementById("confirm-phone").textContent = phone;
+    document.getElementById("confirm-payment").textContent = paymentLabel;
 
-    const orderData = {
+    document.getElementById("confirm-order-overlay").classList.add("active");
+    this._pendingOrder = {
       shippingName: name,
       shippingAddress: address,
       shippingCity: city,
       shippingPhone: phone,
       paymentMethod: paymentMethod,
     };
+  }
 
-    if (this.demoMode) {
-      const newOrder = {
-        id: "ord-" + Date.now(),
-        total: subtotal,
-        status: "pending",
-        paymentStatus: "pending",
-        paymentMethod: paymentMethod,
-        shippingName: name,
-        shippingAddress: address,
-        shippingCity: city,
-        shippingPhone: phone,
-        items: this.cart.map(ci => ({
-          product: ci.product,
-          quantity: ci.quantity,
-          price: ci.product.price,
-        })),
-        createdAt: new Date().toISOString(),
-      };
-      const orders = this.demoGetData('orders');
-      orders.unshift(newOrder);
-      this.demoSaveData('orders', orders);
-      this.showNotification("¡Pedido confirmado! Gracias por tu compra 🎉", "success");
-      this.closeAllOverlays();
-      this.clearCart();
-      return;
-    }
+  async submitOrder() {
+    if (!this._pendingOrder) return;
+    const orderData = this._pendingOrder;
+    this._pendingOrder = null;
+    document.getElementById("confirm-order-overlay").classList.remove("active");
 
     try {
       await API.createOrder(orderData);
-      this.showNotification(
-        "¡Pedido confirmado! Gracias por tu compra 🎉",
-        "success",
-      );
+      this.showNotification("¡Pedido confirmado! Gracias por tu compra 🎉", "success");
       this.closeAllOverlays();
       this.clearCart();
       await this.loadProducts();
@@ -1605,7 +1514,6 @@ class App {
 
   clearCart() {
     this.cart = [];
-    this.demoSaveData('cart', this.cart);
     this.renderCart();
   }
 
@@ -1806,19 +1714,6 @@ class App {
       return;
     }
 
-    if (this.demoMode) {
-      const users = this.demoGetData('users');
-      if (users.find(u => u.email === email)) {
-        this.showNotification("El correo ya está registrado");
-        return;
-      }
-      users.push({ id: "u-" + Date.now(), username, email, password });
-      this.demoSaveData('users', users);
-      this.showNotification("¡Cuenta creada! Ya puedes iniciar sesión");
-      this.showLoginForm();
-      return;
-    }
-
     try {
       await API.register(username, email, password);
       this.showNotification("¡Cuenta creada! Ya puedes iniciar sesión");
@@ -1839,25 +1734,6 @@ class App {
       return;
     }
 
-    if (this.demoMode) {
-      const demoAdmin = { id: "u-admin", username: "Admin", email: "admin@latrode.co", password: "admin123" };
-      const users = this.demoGetData('users');
-      if (!users.find(u => u.email === demoAdmin.email)) users.push(demoAdmin);
-      const user = users.find(u => u.email === email && u.password === password);
-      if (!user) {
-        this.showNotification("Correo o contraseña incorrectos");
-        return;
-      }
-      this.user = { id: user.id, username: user.username, email: user.email };
-      this.demoSaveData('currentUser', this.user);
-      this.updateLoggedInUI();
-      await this.loadCart();
-      await this.loadFavorites();
-      this.showNotification("¡Bienvenido! Carrito y favoritos recuperados");
-      this.closeAllOverlays();
-      return;
-    }
-
     try {
       const loginResponse = await API.login(email, password);
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -1873,18 +1749,6 @@ class App {
   }
 
   async handleLogout() {
-    if (this.demoMode) {
-      this.user = null;
-      localStorage.removeItem('latrode_currentUser');
-      this.cart = [];
-      this.favorites = [];
-      await this.loadCart();
-      await this.loadFavorites();
-      this.showNotification("Sesión cerrada");
-      this.closeAllOverlays();
-      this.updateLoggedOutUI();
-      return;
-    }
     try {
       await API.logout();
       this.user = null;
@@ -1952,8 +1816,8 @@ class App {
       return;
     }
 
-    const addToCartModal = document.getElementById("add-to-cart-modal");
-    if (addToCartModal && addToCartModal.classList.contains("active")) {
+    const addToCartOverlay = document.getElementById("add-to-cart-overlay");
+    if (addToCartOverlay && addToCartOverlay.classList.contains("active")) {
       this.closeAddToCartModal();
       return;
     }
@@ -2102,14 +1966,6 @@ class App {
       documentNumber: formData.get("documentNumber"),
     };
 
-    if (this.demoMode) {
-      Object.assign(this.user, profileData);
-      this.demoSaveData('currentUser', this.user);
-      this.showNotification("Perfil actualizado exitosamente", "success");
-      this.closeAllOverlays();
-      return;
-    }
-
     try {
       await API.updateProfile(profileData);
       this.showNotification("Perfil actualizado exitosamente", "success");
@@ -2118,6 +1974,52 @@ class App {
     } catch (error) {
       this.showNotification("Error al actualizar el perfil", "error");
     }
+  }
+
+  buildFilterCategories() {
+    const cats = [...new Set(this.products.map(p => p.category).filter(Boolean))];
+    const container = document.getElementById("filter-category-submenu");
+    container.innerHTML = '<button class="filter-suboption" data-value="">Todas</button>' +
+      cats.map(c => `<button class="filter-suboption" data-value="${c}">${c}</button>`).join("");
+    container.querySelectorAll(".filter-suboption").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const val = btn.dataset.value;
+        document.getElementById("filter-category-value").textContent = val || "Todas";
+        container.style.display = "none";
+        this._filterCategory = val;
+      });
+    });
+  }
+
+  applyFilters() {
+    const cat = this._filterCategory || "";
+    const sort = this._filterSort || "";
+    const instock = document.getElementById("filter-instock").checked;
+
+    let filtered = [...(this._allProducts || this.products)];
+
+    if (cat) filtered = filtered.filter(p => p.category === cat);
+    if (instock) filtered = filtered.filter(p => p.stock > 0);
+
+    if (sort === "price-asc") filtered.sort((a, b) => a.price - b.price);
+    else if (sort === "price-desc") filtered.sort((a, b) => b.price - a.price);
+    else if (sort === "name-asc") filtered.sort((a, b) => a.name.localeCompare(b.name));
+    else if (sort === "name-desc") filtered.sort((a, b) => b.name.localeCompare(a.name));
+
+    this.products = filtered;
+    this.page = 1;
+    this.renderProducts();
+  }
+
+  resetFilters() {
+    this._filterCategory = "";
+    this._filterSort = "";
+    document.getElementById("filter-category-value").textContent = "Todas";
+    document.getElementById("filter-sort-value").textContent = "Por defecto";
+    document.getElementById("filter-instock").checked = false;
+    this.products = [...(this._allProducts || this.products)];
+    this.page = 1;
+    this.renderProducts();
   }
 }
 

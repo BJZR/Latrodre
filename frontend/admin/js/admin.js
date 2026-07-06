@@ -3,19 +3,45 @@ const API_BASE = '/api/v1';
 let currentSection = 'dashboard';
 let editingProductId = null;
 let productColors = [];
+let globalSizes = [];
+
+function onGlobalSizesChange() {
+    const input = document.getElementById('product-sizes-input');
+    globalSizes = (input.value || '').split(',').map(s => s.trim()).filter(Boolean);
+    const area = document.getElementById('color-size-stock-area');
+    const inputs = document.getElementById('color-size-stock-inputs');
+    if (globalSizes.length > 0) {
+        area.style.display = 'block';
+        inputs.innerHTML = globalSizes.map(s => `
+            <label class="size-stock-inline">
+                ${s}:
+                <input type="number" class="size-stock-input" data-size="${s}" value="0" min="0">
+            </label>
+        `).join('');
+    } else {
+        area.style.display = 'none';
+    }
+}
 
 function addColor() {
     const nameInput = document.getElementById('color-name-input');
     const hexInput = document.getElementById('color-hex-input');
-    const stockInput = document.getElementById('color-stock-input');
     const name = nameInput.value.trim();
     const hex = hexInput.value.trim();
-    const stock = parseInt(stockInput.value) || 0;
     if (!name || !hex) return;
-    productColors.push({ name, hex_code: hex, stock });
+
+    const sizes = globalSizes.map(s => {
+        const input = document.querySelector(`#color-size-stock-inputs .size-stock-input[data-size="${s}"]`);
+        return { size: s, stock: parseInt(input?.value) || 0 };
+    });
+
+    const stock = sizes.reduce((sum, s) => sum + s.stock, 0);
+    productColors.push({ name, hex_code: hex, stock, sizes });
     nameInput.value = '';
     hexInput.value = '';
-    stockInput.value = '0';
+
+    document.querySelectorAll('#color-size-stock-inputs .size-stock-input').forEach(inp => inp.value = '0');
+
     renderColorList();
 }
 
@@ -24,16 +50,50 @@ function removeColor(index) {
     renderColorList();
 }
 
+function getSizeStock(color, size) {
+    const s = (color.sizes || []).find(s => s.size === size);
+    return s ? s.stock : 0;
+}
+
+function updateSizeStock(colorIndex, size, value) {
+    const c = productColors[colorIndex];
+    if (!c) return;
+    const s = (c.sizes || []).find(s => s.size === size);
+    if (s) {
+        s.stock = parseInt(value) || 0;
+    } else {
+        if (!c.sizes) c.sizes = [];
+        c.sizes.push({ size, stock: parseInt(value) || 0 });
+    }
+    const total = (c.sizes || []).reduce((sum, s) => sum + s.stock, 0);
+    const badge = document.querySelector(`#color-list .color-chip:nth-child(${colorIndex + 1}) .color-stock-badge`);
+    if (badge) badge.textContent = 'Stock: ' + total;
+}
+
 function renderColorList() {
     const container = document.getElementById('color-list');
-    container.innerHTML = productColors.map((c, i) => `
+    container.innerHTML = productColors.map((c, i) => {
+        const sizes = c.sizes || [];
+        const totalStock = sizes.reduce((sum, s) => sum + s.stock, 0);
+        return `
         <div class="color-chip">
             <span class="color-swatch" style="background:${c.hex_code}"></span>
-            <span>${c.name}</span>
-            <span class="color-stock-badge">Stock: ${c.stock || 0}</span>
+            <span class="color-chip-name">${c.name}</span>
+            <span class="color-stock-badge">Stock: ${totalStock}</span>
+            <span class="color-size-stocks">
+                ${globalSizes.map(s => {
+                    const sz = sizes.find(x => x.size === s);
+                    return `
+                    <label class="size-stock-inline">
+                        ${s}:
+                        <input type="number" class="size-stock-input" value="${sz ? sz.stock : 0}" min="0"
+                            onchange="updateSizeStock(${i}, '${s}', this.value)">
+                    </label>`;
+                }).join('')}
+            </span>
             <button type="button" class="color-remove" onclick="removeColor(${i})">&times;</button>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
 }
 
 async function editProduct(productId) {
@@ -58,16 +118,17 @@ function showProductModal(product = null) {
         form.name.value = product.name;
         form.description.value = product.description;
         form.price.value = product.price;
-        form.stock.value = product.stock;
         form.category.value = product.category;
         form.image_url.value = product.imageUrl || '';
         form.material.value = product.material || '';
         form.sizes.value = (product.sizes || []).join(', ');
-        productColors = (product.colors || []).map(c => ({ name: c.name, hex_code: c.hex, stock: c.stock || 0 }));
+        onGlobalSizesChange();
+        productColors = (product.colors || []).map(c => ({ name: c.name, hex_code: c.hex, stock: c.stock || 0, sizes: c.sizes || [] }));
         renderColorList();
     } else {
         title.textContent = 'Nuevo Producto';
         form.reset();
+        onGlobalSizesChange();
         productColors = [];
         renderColorList();
     }
@@ -83,16 +144,22 @@ function closeProductModal() {
 document.getElementById('productForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const form = e.target;
+    const colors = productColors.map(c => {
+        const sizes = c.sizes || [];
+        const stock = sizes.reduce((sum, s) => sum + s.stock, 0);
+        return { name: c.name, hex: c.hex_code, stock, sizes };
+    });
+    const totalStock = colors.reduce((sum, c) => sum + c.stock, 0);
     const payload = {
         name: form.name.value,
         description: form.description.value,
         price: parseFloat(form.price.value) || 0,
-        stock: parseInt(form.stock.value) || 0,
+        stock: totalStock,
         category: form.category.value,
         imageUrl: form.image_url.value,
         material: form.material.value,
         sizes: form.sizes.value.split(',').map(s => s.trim()).filter(Boolean),
-        colors: productColors.map(c => ({ name: c.name, hex: c.hex_code, stock: c.stock || 0 }))
+        colors
     };
 
     try {
@@ -158,14 +225,25 @@ function renderPaymentMethods(methods) {
     `).join('');
 }
 
+let allUsers = [];
+
 async function loadUsers() {
     try {
         const response = await fetch(`${API_BASE}/admin/users`);
-        const users = await response.json();
-        renderUsers(users || []);
+        allUsers = await response.json();
+        renderUsers(allUsers || []);
     } catch (error) {
         console.error('Error loading users:', error);
     }
+}
+
+function applyUsersFilter() {
+    const query = document.getElementById('usersSearchInput').value.toLowerCase().trim();
+    const role = document.getElementById('usersRoleFilter').value;
+    let filtered = allUsers;
+    if (query) filtered = filtered.filter(u => (u.username || '').toLowerCase().includes(query) || (u.email || '').toLowerCase().includes(query));
+    if (role) filtered = filtered.filter(u => u.role === role);
+    renderUsers(filtered);
 }
 
 function renderUsers(users) {
@@ -401,12 +479,16 @@ async function viewOrder(orderId) {
 
 function renderOrderDetails(order) {
     const container = document.getElementById('orderDetails');
+    const methodNames = { cash_on_delivery: 'Contra Entrega', transfer: 'Transferencia', card: 'Tarjeta' };
     container.innerHTML = `
         <div class="order-details">
             <h3>Información de Envío</h3>
+            <p><strong>Nombre:</strong> ${order.shippingName || '—'}</p>
             <p><strong>Dirección:</strong> ${order.shippingAddress}</p>
             <p><strong>Ciudad:</strong> ${order.shippingCity}</p>
             <p><strong>Teléfono:</strong> ${order.shippingPhone}</p>
+            <p><strong>Método de Pago:</strong> ${methodNames[order.paymentMethod] || order.paymentMethod || '—'}</p>
+            <p><strong>Fecha:</strong> ${order.createdAt ? new Date(order.createdAt).toLocaleString() : '—'}</p>
             <h3>Productos</h3>
             ${(order.items || []).map(item => `
                 <div class="order-item">
@@ -558,6 +640,10 @@ loginForm.addEventListener('submit', async (e) => {
         });
         if (resp.ok) {
             const user = await resp.json();
+            if (user.email !== 'latrode.co@gmail.com') {
+                showLoginError('Solo el administrador puede acceder a este panel');
+                return;
+            }
             document.getElementById('loginEmail').value = '';
             document.getElementById('loginPassword').value = '';
             showAdminContent();
@@ -572,6 +658,123 @@ loginForm.addEventListener('submit', async (e) => {
     } finally {
         btn.disabled = false;
         btn.textContent = 'Ingresar';
+    }
+});
+
+/* ========== Admin Password Reset ========== */
+let resetStep = 1;
+
+document.getElementById('adminForgotLink')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    document.getElementById('adminLoginView').style.display = 'none';
+    document.getElementById('adminResetView').style.display = 'block';
+    resetStep = 1;
+    document.getElementById('adminResetStep1').style.display = 'block';
+    document.getElementById('adminResetStep2').style.display = 'none';
+    document.getElementById('adminResetStep3').style.display = 'none';
+    document.getElementById('resetError').style.display = 'none';
+});
+
+document.getElementById('adminBackToLogin')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    document.getElementById('adminLoginView').style.display = 'block';
+    document.getElementById('adminResetView').style.display = 'none';
+});
+
+document.getElementById('adminResetForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorEl = document.getElementById('resetError');
+    errorEl.style.display = 'none';
+
+    const email = 'latrode.co@gmail.com';
+
+    if (resetStep === 1) {
+        const btn = e.target.querySelector('#adminResetStep1 .login-btn');
+        btn.disabled = true;
+        btn.textContent = 'Enviando...';
+        try {
+            const resp = await fetch(`${API_BASE}/auth/forgot-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
+            const data = await resp.json();
+            if (resp.ok) {
+                resetStep = 2;
+                document.getElementById('adminResetStep1').style.display = 'none';
+                document.getElementById('adminResetStep2').style.display = 'block';
+            } else {
+                errorEl.textContent = data.error || 'Error al enviar código';
+                errorEl.style.display = 'block';
+            }
+        } catch (err) {
+            errorEl.textContent = 'Error de conexión';
+            errorEl.style.display = 'block';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Enviar Código';
+        }
+    } else if (resetStep === 2) {
+        const code = document.getElementById('resetCode').value.trim();
+        if (!code) { errorEl.textContent = 'Ingresa el código'; errorEl.style.display = 'block'; return; }
+        const btn = e.target.querySelector('#adminResetStep2 .login-btn');
+        btn.disabled = true;
+        btn.textContent = 'Verificando...';
+        try {
+            const resp = await fetch(`${API_BASE}/auth/verify-reset-code`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, code })
+            });
+            if (resp.ok) {
+                resetStep = 3;
+                document.getElementById('adminResetStep2').style.display = 'none';
+                document.getElementById('adminResetStep3').style.display = 'block';
+            } else {
+                const data = await resp.json();
+                errorEl.textContent = data.error || 'Código inválido';
+                errorEl.style.display = 'block';
+            }
+        } catch (err) {
+            errorEl.textContent = 'Error de conexión';
+            errorEl.style.display = 'block';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Verificar Código';
+        }
+    } else if (resetStep === 3) {
+        const newPassword = document.getElementById('resetNewPassword').value;
+        if (!newPassword || newPassword.length < 6) {
+            errorEl.textContent = 'La contraseña debe tener al menos 6 caracteres';
+            errorEl.style.display = 'block';
+            return;
+        }
+        const code = document.getElementById('resetCode').value.trim();
+        const btn = e.target.querySelector('#adminResetStep3 .login-btn');
+        btn.disabled = true;
+        btn.textContent = 'Cambiando...';
+        try {
+            const resp = await fetch(`${API_BASE}/auth/reset-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, code, newPassword })
+            });
+            if (resp.ok) {
+                alert('Contraseña actualizada exitosamente');
+                document.getElementById('adminResetView').style.display = 'none';
+                document.getElementById('adminLoginView').style.display = 'block';
+            } else {
+                const data = await resp.json();
+                errorEl.textContent = data.error || 'Error al cambiar contraseña';
+                errorEl.style.display = 'block';
+            }
+        } catch (err) {
+            errorEl.textContent = 'Error de conexión';
+            errorEl.style.display = 'block';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Cambiar Contraseña';
+        }
     }
 });
 
